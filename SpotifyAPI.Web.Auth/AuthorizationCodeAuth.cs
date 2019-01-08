@@ -10,6 +10,10 @@ using SpotifyAPI.Web.Models;
 using Unosquare.Labs.EmbedIO;
 using Unosquare.Labs.EmbedIO.Constants;
 using Unosquare.Labs.EmbedIO.Modules;
+using Unosquare.Swan;
+#if NET46
+using HttpListenerContext = Unosquare.Net.HttpListenerContext;
+#endif
 
 namespace SpotifyAPI.Web.Auth
 {
@@ -34,14 +38,14 @@ namespace SpotifyAPI.Web.Auth
             return string.IsNullOrEmpty(SecretId) || string.IsNullOrEmpty(ClientId);
         }
 
-        public override string GetUri()
+        public override string GetAuthUri()
         {
-            return ShouldRegisterNewApp() ? $"{RedirectUri}/start.html#{State}" : base.GetUri();
+            return ShouldRegisterNewApp() ? $"{ServerUri}/start.html#{State}" : base.GetAuthUri();
         }
 
-        protected override void AdaptWebServer(WebServer webServer)
+        protected override WebServer AdaptWebServer(WebServer webServer)
         {
-            webServer.Module<WebApiModule>().RegisterController<AuthorizationCodeAuthController>();
+            return webServer.WithWebApiController<AuthorizationCodeAuthController>();
         }
 
         private string GetAuthHeader() => $"Basic {Convert.ToBase64String(Encoding.UTF8.GetBytes(ClientId + ":" + SecretId))}";
@@ -93,29 +97,29 @@ namespace SpotifyAPI.Web.Auth
     internal class AuthorizationCodeAuthController : WebApiController
     {
         [WebApiHandler(HttpVerbs.Get, "/")]
-        public Task<bool> GetEmpty()
+        public Task<bool> GetEmpty(WebServer server, HttpListenerContext context)
         {
-            string state = Request.QueryString["state"];
+            string state = context.Request.QueryString["state"];
             AuthorizationCodeAuth.Instances.TryGetValue(state, out SpotifyAuthServer<AuthorizationCode> auth);
 
             string code = null;
-            string error = Request.QueryString["error"];
+            string error = context.Request.QueryString["error"];
             if (error == null)
-                code = Request.QueryString["code"];
+                code = context.Request.QueryString["code"];
 
             Task.Factory.StartNew(() => auth?.TriggerAuth(new AuthorizationCode
             {
                 Code = code,
                 Error = error
             }));
-            
-            return this.StringResponseAsync("OK - This window can be closed now");
+
+            return context.StringResponseAsync("OK - This window can be closed now");
         }
 
         [WebApiHandler(HttpVerbs.Post, "/")]
-        public bool PostValues()
+        public bool PostValues(WebServer server, HttpListenerContext context)
         {
-            Dictionary<string, object> formParams = this.RequestFormDataDictionary();
+            Dictionary<string, object> formParams = context.RequestFormDataDictionary();
 
             string state = (string) formParams["state"];
             AuthorizationCodeAuth.Instances.TryGetValue(state, out SpotifyAuthServer<AuthorizationCode> authServer);
@@ -124,12 +128,8 @@ namespace SpotifyAPI.Web.Auth
             auth.ClientId = (string) formParams["clientId"];
             auth.SecretId = (string) formParams["secretId"];
 
-            string uri = auth.GetUri();
-            return this.Redirect(uri, false);
-        }
-
-        public AuthorizationCodeAuthController(IHttpContext context) : base(context)
-        {
+            string uri = auth.GetAuthUri();
+            return context.Redirect(uri, false);
         }
     }
 }

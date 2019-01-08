@@ -17,8 +17,6 @@ namespace SpotifyAPI.Web
         private readonly Encoding _encoding = Encoding.UTF8;
         private readonly HttpClient _client;
 
-        private const string UnknownErrorJson = "{\"error\": { \"status\": 0, \"message\": \"SpotifyAPI.Web - Unkown Spotify Error\" }}";
-
         public SpotifyWebClient(ProxyConfig proxyConfig = null)
         {
             HttpClientHandler clientHandler = CreateClientHandler(proxyConfig);
@@ -72,26 +70,13 @@ namespace SpotifyAPI.Web
         public Tuple<ResponseInfo, T> DownloadJson<T>(string url, Dictionary<string, string> headers = null)
         {
             Tuple<ResponseInfo, string> response = Download(url, headers);
-            try
-            {
-                return new Tuple<ResponseInfo, T>(response.Item1, JsonConvert.DeserializeObject<T>(response.Item2, JsonSettings));
-            }
-            catch (JsonException)
-            {
-                return new Tuple<ResponseInfo, T>(response.Item1, JsonConvert.DeserializeObject<T>(UnknownErrorJson, JsonSettings));
-            }
+            return new Tuple<ResponseInfo, T>(response.Item1, JsonConvert.DeserializeObject<T>(response.Item2, JsonSettings));
         }
 
         public async Task<Tuple<ResponseInfo, T>> DownloadJsonAsync<T>(string url, Dictionary<string, string> headers = null)
         {
-            Tuple<ResponseInfo, string> response = await DownloadAsync(url, headers).ConfigureAwait(false);try
-            {
-                return new Tuple<ResponseInfo, T>(response.Item1, JsonConvert.DeserializeObject<T>(response.Item2, JsonSettings));
-            }
-            catch (JsonException)
-            {
-                return new Tuple<ResponseInfo, T>(response.Item1, JsonConvert.DeserializeObject<T>(UnknownErrorJson, JsonSettings));
-            }
+            Tuple<ResponseInfo, string> response = await DownloadAsync(url, headers).ConfigureAwait(false);
+            return new Tuple<ResponseInfo, T>(response.Item1, JsonConvert.DeserializeObject<T>(response.Item2, JsonSettings));
         }
 
         public Tuple<ResponseInfo, string> Upload(string url, string body, string method, Dictionary<string, string> headers = null)
@@ -151,27 +136,13 @@ namespace SpotifyAPI.Web
         public Tuple<ResponseInfo, T> UploadJson<T>(string url, string body, string method, Dictionary<string, string> headers = null)
         {
             Tuple<ResponseInfo, string> response = Upload(url, body, method, headers);
-            try
-            {
-                return new Tuple<ResponseInfo, T>(response.Item1, JsonConvert.DeserializeObject<T>(response.Item2, JsonSettings));
-            }
-            catch (JsonException)
-            {
-                return new Tuple<ResponseInfo, T>(response.Item1, JsonConvert.DeserializeObject<T>(UnknownErrorJson, JsonSettings));
-            }
+            return new Tuple<ResponseInfo, T>(response.Item1, JsonConvert.DeserializeObject<T>(response.Item2, JsonSettings));
         }
 
         public async Task<Tuple<ResponseInfo, T>> UploadJsonAsync<T>(string url, string body, string method, Dictionary<string, string> headers = null)
         {
             Tuple<ResponseInfo, string> response = await UploadAsync(url, body, method, headers).ConfigureAwait(false);
-            try
-            {
-                return new Tuple<ResponseInfo, T>(response.Item1, JsonConvert.DeserializeObject<T>(response.Item2, JsonSettings));
-            }
-            catch (JsonException)
-            {
-                return new Tuple<ResponseInfo, T>(response.Item1, JsonConvert.DeserializeObject<T>(UnknownErrorJson, JsonSettings));
-            }
+            return new Tuple<ResponseInfo, T>(response.Item1, JsonConvert.DeserializeObject<T>(response.Item2, JsonSettings));
         }
 
         public void Dispose()
@@ -180,9 +151,10 @@ namespace SpotifyAPI.Web
             GC.SuppressFinalize(this);
         }
 
-        private static WebHeaderCollection ConvertHeaders(HttpResponseHeaders headers)
+        private static Dictionary<string, string> ConvertHeaders(HttpResponseHeaders headers)
         {
-            WebHeaderCollection newHeaders = new WebHeaderCollection();
+            //WebHeaderCollection newHeaders = new WebHeaderCollection();
+            Dictionary<string, string> newHeaders = new Dictionary<string, string>();
             foreach (KeyValuePair<string, IEnumerable<string>> headerPair in headers)
             {
                 foreach (string headerValue in headerPair.Value)

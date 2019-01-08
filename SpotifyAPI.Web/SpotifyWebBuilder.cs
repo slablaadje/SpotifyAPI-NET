@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using SpotifyAPI.Web.Enums;
 using SpotifyAPI.Web.Models;
+using SpotifyAPI.Web.Models.Analysis;
 
 namespace SpotifyAPI.Web
 {
@@ -652,7 +653,6 @@ namespace SpotifyAPI.Web
         /// <summary>
         ///     Get full details of the tracks of a playlist owned by a Spotify user.
         /// </summary>
-        /// <param name="userId">The user's Spotify user ID.</param>
         /// <param name="playlistId">The Spotify ID for the playlist.</param>
         /// <param name="fields">
         ///     Filters for the query: a comma-separated list of the fields to return. If omitted, all fields are
@@ -663,10 +663,10 @@ namespace SpotifyAPI.Web
         /// <param name="market">An ISO 3166-1 alpha-2 country code. Provide this parameter if you want to apply Track Relinking.</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public string GetPlaylistTracks(string userId, string playlistId, string fields = "", int limit = 100, int offset = 0, string market = "")
+        public string GetPlaylistTracks(string playlistId, string fields = "", int limit = 100, int offset = 0, string market = "")
         {
             limit = Math.Min(limit, 100);
-            StringBuilder builder = new StringBuilder(APIBase + "/users/" + userId + "/playlists/" + playlistId + "/tracks");
+            StringBuilder builder = new StringBuilder(APIBase + "/playlists/" + playlistId + "/tracks");
             builder.Append("?fields=" + fields);
             builder.Append("&limit=" + limit);
             builder.Append("&offset=" + offset);
@@ -683,13 +683,9 @@ namespace SpotifyAPI.Web
         ///     The name for the new playlist, for example "Your Coolest Playlist". This name does not need
         ///     to be unique.
         /// </param>
-        /// <param name="isPublic">
-        ///     default true. If true the playlist will be public, if false it will be private. To be able to
-        ///     create private playlists, the user must have granted the playlist-modify-private scope.
-        /// </param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public string CreatePlaylist(string userId, string playlistName, Boolean isPublic = true)
+        public string CreatePlaylist(string userId, string playlistName)
         {
             return $"{APIBase}/users/{userId}/playlists";
         }
@@ -724,13 +720,9 @@ namespace SpotifyAPI.Web
         /// </summary>
         /// <param name="userId">The user's Spotify user ID.</param>
         /// <param name="playlistId">The Spotify ID for the playlist.</param>
-        /// <param name="uris">
-        ///     array of objects containing Spotify URI strings (and their position in the playlist). A maximum of
-        ///     100 objects can be sent at once.
-        /// </param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public string RemovePlaylistTracks(string userId, string playlistId, List<DeleteTrackUri> uris)
+        public string RemovePlaylistTracks(string userId, string playlistId)
         {
             return $"{APIBase}/users/{userId}/playlists/{playlistId}/tracks";
         }

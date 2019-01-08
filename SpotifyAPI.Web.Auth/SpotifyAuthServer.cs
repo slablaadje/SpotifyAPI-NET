@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using System.Text;
 using System.Threading;
+using System.Web;
 using SpotifyAPI.Web.Enums;
 using Unosquare.Labs.EmbedIO;
 using Unosquare.Labs.EmbedIO.Constants;
@@ -45,25 +45,25 @@ namespace SpotifyAPI.Web.Auth
             Instances.Add(State, this);
             _serverSource = new CancellationTokenSource();
 
-            _server = WebServer.Create(ServerUri);
+            _server = WebServer.Create(ServerUri, RoutingStrategy.Regex);
             _server.RegisterModule(new WebApiModule());
             AdaptWebServer(_server);
-            _server.RegisterModule(new ResourceFilesModule(Assembly.GetExecutingAssembly(), $"SpotifyAPI.Web.Auth.Resources.{_folder}"));
+            _server.RegisterModule(new ResourceFilesModule(typeof(T).Assembly, $"SpotifyAPI.Web.Auth.Resources.{_folder}"));
 #pragma warning disable 4014
             _server.RunAsync(_serverSource.Token);
 #pragma warning restore 4014
         }
 
-        public virtual string GetUri()
+        public virtual string GetAuthUri()
         {
             StringBuilder builder = new StringBuilder("https://accounts.spotify.com/authorize/?");
             builder.Append("client_id=" + ClientId);
             builder.Append($"&response_type={_type}");
-            builder.Append("&redirect_uri=" + RedirectUri);
+            builder.Append("&redirect_uri=" + Uri.EscapeDataString(RedirectUri));
             builder.Append("&state=" + State);
-            builder.Append("&scope=" + Scope.GetStringAttribute(" "));
+            builder.Append("&scope=" + Uri.EscapeDataString(Scope.GetStringAttribute(" ")));
             builder.Append("&show_dialog=" + ShowDialog);
-            return Uri.EscapeUriString(builder.ToString());
+            return builder.ToString();
         }
 
         public void Stop(int delay = 2000)
@@ -75,7 +75,7 @@ namespace SpotifyAPI.Web.Auth
 
         public void OpenBrowser()
         {
-            string uri = GetUri();
+            string uri = GetAuthUri();
             AuthUtil.OpenBrowser(uri);
         }
 
@@ -89,6 +89,6 @@ namespace SpotifyAPI.Web.Auth
             return Instances.TryGetValue(state, out SpotifyAuthServer<T> auth) ? auth : null;
         }
 
-        protected abstract void AdaptWebServer(WebServer webServer);
+        protected abstract WebServer AdaptWebServer(WebServer webServer);
     }
 }

@@ -2,6 +2,16 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using SpotifyAPI.Web.Enums;
 using SpotifyAPI.Web.Models;
+using SpotifyAPI.Web.Models.Analysis;
+using SpotifyAPI.Web.Models.Artists;
+using SpotifyAPI.Web.Models.Categories;
+using SpotifyAPI.Web.Models.Devices;
+using SpotifyAPI.Web.Models.Library;
+using SpotifyAPI.Web.Models.Music;
+using SpotifyAPI.Web.Models.Paging;
+using SpotifyAPI.Web.Models.Playlists;
+using SpotifyAPI.Web.Models.Profiles;
+using SpotifyAPI.Web.Models.Recommendations;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,6 +24,7 @@ namespace SpotifyAPI.Web
     public sealed class SpotifyWebAPI : IDisposable
     {
         private readonly SpotifyWebBuilder _builder;
+        private DateTime LastRequest;
 
         public SpotifyWebAPI() : this(null)
         {
@@ -62,21 +73,27 @@ namespace SpotifyAPI.Web
         /// </summary>
         public IClient WebClient { get; set; }
 
+        /// <summary>
+        ///     Specifies after how many miliseconds should a failed request be retried.
+        /// </summary>
+        public int RetryAfter { get; set; } = 100;
 
         /// <summary>
         ///     Specifies after how many miliseconds should a failed request be retried.
         /// </summary>
-        public int RetryAfter { get; set; } = 50;
+        public int RetryAfterWhenApiRateExceeeded { get; set; } = 500;
 
         /// <summary>
         ///     Should a failed request (specified by <see cref="RetryErrorCodes"/> be automatically retried or not.
         /// </summary>
-        public bool UseAutoRetry { get; set; } = false;
+        public bool UseAutoRetry { get; set; } = true;
 
-        /// <summary>
+        /// <summary>ik p
         ///     Maximum number of tries for one failed request.
         /// </summary>
-        public int RetryTimes { get; set; } = 10;
+        public int RetryTimes { get; set; } = 2;
+
+        public TimeSpan MinimumDelayBetweenRequests { get; set; } = new TimeSpan(0, 0, 0, 0, 50);
 
         /// <summary>
         ///     Whether a failure of type "Too Many Requests" should use up one of the allocated retry attempts.
@@ -86,7 +103,7 @@ namespace SpotifyAPI.Web
         /// <summary>
         ///     Error codes that will trigger auto-retry if <see cref="UseAutoRetry"/> is enabled.
         /// </summary>
-        public IEnumerable<int> RetryErrorCodes { get; set; } = new[] { 500, 502, 503 };
+        public IEnumerable<int> RetryErrorCodes { get; set; } = new[] { 429, 500, 502, 503 };
 
         #endregion Configuration
 
@@ -133,9 +150,9 @@ namespace SpotifyAPI.Web
         /// <param name="offset">The index of the first track to return. Default: 0 (the first object).</param>
         /// <param name="market">An ISO 3166-1 alpha-2 country code. Provide this parameter if you want to apply Track Relinking.</param>
         /// <returns></returns>
-        public Paging<SimpleTrack> GetAlbumTracks(string id, int limit = 20, int offset = 0, string market = "")
+        public ItemPaging<SimpleTrack> GetAlbumTracks(string id, int limit = 20, int offset = 0, string market = "")
         {
-            return DownloadData<Paging<SimpleTrack>>(_builder.GetAlbumTracks(id, limit, offset, market));
+            return DownloadData<ItemPaging<SimpleTrack>>(_builder.GetAlbumTracks(id, limit, offset, market));
         }
 
         /// <summary>
@@ -147,9 +164,9 @@ namespace SpotifyAPI.Web
         /// <param name="offset">The index of the first track to return. Default: 0 (the first object).</param>
         /// <param name="market">An ISO 3166-1 alpha-2 country code. Provide this parameter if you want to apply Track Relinking.</param>
         /// <returns></returns>
-        public Task<Paging<SimpleTrack>> GetAlbumTracksAsync(string id, int limit = 20, int offset = 0, string market = "")
+        public Task<ItemPaging<SimpleTrack>> GetAlbumTracksAsync(string id, int limit = 20, int offset = 0, string market = "")
         {
-            return DownloadDataAsync<Paging<SimpleTrack>>(_builder.GetAlbumTracks(id, limit, offset, market));
+            return DownloadDataAsync<ItemPaging<SimpleTrack>>(_builder.GetAlbumTracks(id, limit, offset, market));
         }
 
         /// <summary>
@@ -280,9 +297,9 @@ namespace SpotifyAPI.Web
         ///     geographical market
         /// </param>
         /// <returns></returns>
-        public Paging<SimpleAlbum> GetArtistsAlbums(string id, AlbumType type = AlbumType.All, int limit = 20, int offset = 0, string market = "")
+        public ItemPaging<SimpleAlbum> GetArtistsAlbums(string id, AlbumType type = AlbumType.All, int limit = 20, int offset = 0, string market = "")
         {
-            return DownloadData<Paging<SimpleAlbum>>(_builder.GetArtistsAlbums(id, type, limit, offset, market));
+            return DownloadData<ItemPaging<SimpleAlbum>>(_builder.GetArtistsAlbums(id, type, limit, offset, market));
         }
 
         /// <summary>
@@ -301,9 +318,9 @@ namespace SpotifyAPI.Web
         ///     geographical market
         /// </param>
         /// <returns></returns>
-        public Task<Paging<SimpleAlbum>> GetArtistsAlbumsAsync(string id, AlbumType type = AlbumType.All, int limit = 20, int offset = 0, string market = "")
+        public Task<ItemPaging<SimpleAlbum>> GetArtistsAlbumsAsync(string id, AlbumType type = AlbumType.All, int limit = 20, int offset = 0, string market = "")
         {
-            return DownloadDataAsync<Paging<SimpleAlbum>>(_builder.GetArtistsAlbums(id, type, limit, offset, market));
+            return DownloadDataAsync<ItemPaging<SimpleAlbum>>(_builder.GetArtistsAlbums(id, type, limit, offset, market));
         }
 
         /// <summary>
@@ -391,7 +408,7 @@ namespace SpotifyAPI.Web
         /// <param name="offset">The index of the first item to return. Default: 0</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public Task<NewAlbumReleases> GetNewAlbumReleasesAsync(string country = "", int limit = 20, int offset = 0)
+        public Task<NewAlbumReleases> GetNewAlbumReleasesAsync(string country = "", int limit = 50, int offset = 0)
         {
             if (!UseAuth)
                 throw new InvalidOperationException("Auth is required for GetNewAlbumReleases");
@@ -413,7 +430,7 @@ namespace SpotifyAPI.Web
         /// <param name="offset">The index of the first item to return. Default: 0 (the first object).</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public CategoryList GetCategories(string country = "", string locale = "", int limit = 20, int offset = 0)
+        public CategoryList GetCategories(string country = "", string locale = "", int limit = 50, int offset = 0)
         {
             if (!UseAuth)
                 throw new InvalidOperationException("Auth is required for GetCategories");
@@ -435,7 +452,7 @@ namespace SpotifyAPI.Web
         /// <param name="offset">The index of the first item to return. Default: 0 (the first object).</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public Task<CategoryList> GetCategoriesAsync(string country = "", string locale = "", int limit = 20, int offset = 0)
+        public Task<CategoryList> GetCategoriesAsync(string country = "", string locale = "", int limit = 50, int offset = 0)
         {
             if (!UseAuth)
                 throw new InvalidOperationException("Auth is required for GetCategories");
@@ -489,7 +506,7 @@ namespace SpotifyAPI.Web
         /// <param name="offset">The index of the first item to return. Default: 0</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public CategoryPlaylist GetCategoryPlaylists(string categoryId, string country = "", int limit = 20, int offset = 0)
+        public CategoryPlaylist GetCategoryPlaylists(string categoryId, string country = "", int limit = 50, int offset = 0)
         {
             return DownloadData<CategoryPlaylist>(_builder.GetCategoryPlaylists(categoryId, country, limit, offset));
         }
@@ -625,13 +642,13 @@ namespace SpotifyAPI.Web
         /// <param name="ids">A list of the artist or the user Spotify IDs</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public ErrorResponse Follow(FollowType followType, List<string> ids)
+        public BasicModel Follow(FollowType followType, List<string> ids)
         {
             JObject ob = new JObject
             {
                 {"ids", new JArray(ids)}
             };
-            return UploadData<ErrorResponse>(_builder.Follow(followType), ob.ToString(Formatting.None), "PUT") ?? new ErrorResponse();
+            return UploadData<BasicModel>(_builder.Follow(followType), ob.ToString(Formatting.None), "PUT") ?? new BasicModel();
         }
 
         /// <summary>
@@ -641,14 +658,14 @@ namespace SpotifyAPI.Web
         /// <param name="ids">A list of the artist or the user Spotify IDs</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public async Task<ErrorResponse> FollowAsync(FollowType followType, List<string> ids)
+        public async Task<BasicModel> FollowAsync(FollowType followType, List<string> ids)
         {
             JObject ob = new JObject
             {
                 {"ids", new JArray(ids)}
             };
-            return (await UploadDataAsync<ErrorResponse>(_builder.Follow(followType),
-                    ob.ToString(Formatting.None), "PUT").ConfigureAwait(false)) ?? new ErrorResponse();
+            return (await UploadDataAsync<BasicModel>(_builder.Follow(followType),
+                    ob.ToString(Formatting.None), "PUT").ConfigureAwait(false)) ?? new BasicModel();
         }
 
         /// <summary>
@@ -658,7 +675,7 @@ namespace SpotifyAPI.Web
         /// <param name="id">Artists or the Users Spotify ID</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public ErrorResponse Follow(FollowType followType, string id)
+        public BasicModel Follow(FollowType followType, string id)
         {
             return Follow(followType, new List<string> { id });
         }
@@ -670,7 +687,7 @@ namespace SpotifyAPI.Web
         /// <param name="id">Artists or the Users Spotify ID</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public Task<ErrorResponse> FollowAsync(FollowType followType, string id)
+        public Task<BasicModel> FollowAsync(FollowType followType, string id)
         {
             return FollowAsync(followType, new List<string> { id });
         }
@@ -682,13 +699,13 @@ namespace SpotifyAPI.Web
         /// <param name="ids">A list of the artist or the user Spotify IDs</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public ErrorResponse Unfollow(FollowType followType, List<string> ids)
+        public BasicModel Unfollow(FollowType followType, List<string> ids)
         {
             JObject ob = new JObject
             {
                 {"ids", new JArray(ids)}
             };
-            return UploadData<ErrorResponse>(_builder.Unfollow(followType), ob.ToString(Formatting.None), "DELETE") ?? new ErrorResponse();
+            return UploadData<BasicModel>(_builder.Unfollow(followType), ob.ToString(Formatting.None), "DELETE") ?? new BasicModel();
         }
 
         /// <summary>
@@ -698,13 +715,13 @@ namespace SpotifyAPI.Web
         /// <param name="ids">A list of the artist or the user Spotify IDs</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public async Task<ErrorResponse> UnfollowAsync(FollowType followType, List<string> ids)
+        public async Task<BasicModel> UnfollowAsync(FollowType followType, List<string> ids)
         {
             JObject ob = new JObject
             {
                 {"ids", new JArray(ids)}
             };
-            return (await UploadDataAsync<ErrorResponse>(_builder.Unfollow(followType), ob.ToString(Formatting.None), "DELETE").ConfigureAwait(false)) ?? new ErrorResponse();
+            return (await UploadDataAsync<BasicModel>(_builder.Unfollow(followType), ob.ToString(Formatting.None), "DELETE").ConfigureAwait(false)) ?? new BasicModel();
         }
 
         /// <summary>
@@ -714,7 +731,7 @@ namespace SpotifyAPI.Web
         /// <param name="id">Artists or the Users Spotify ID</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public ErrorResponse Unfollow(FollowType followType, string id)
+        public BasicModel Unfollow(FollowType followType, string id)
         {
             return Unfollow(followType, new List<string> { id });
         }
@@ -726,7 +743,7 @@ namespace SpotifyAPI.Web
         /// <param name="id">Artists or the Users Spotify ID</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public Task<ErrorResponse> UnfollowAsync(FollowType followType, string id)
+        public Task<BasicModel> UnfollowAsync(FollowType followType, string id)
         {
             return UnfollowAsync(followType, new List<string> { id });
         }
@@ -803,13 +820,13 @@ namespace SpotifyAPI.Web
         /// </param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public ErrorResponse FollowPlaylist(string ownerId, string playlistId, bool showPublic = true)
+        public BasicModel FollowPlaylist(string ownerId, string playlistId, bool showPublic = true)
         {
             JObject body = new JObject
             {
                 {"public", showPublic}
             };
-            return UploadData<ErrorResponse>(_builder.FollowPlaylist(ownerId, playlistId, showPublic), body.ToString(Formatting.None), "PUT");
+            return UploadData<BasicModel>(_builder.FollowPlaylist(ownerId, playlistId, showPublic), body.ToString(Formatting.None), "PUT");
         }
 
         /// <summary>
@@ -826,13 +843,13 @@ namespace SpotifyAPI.Web
         /// </param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public Task<ErrorResponse> FollowPlaylistAsync(string ownerId, string playlistId, bool showPublic = true)
+        public Task<BasicModel> FollowPlaylistAsync(string ownerId, string playlistId, bool showPublic = true)
         {
             JObject body = new JObject
             {
                 {"public", showPublic}
             };
-            return UploadDataAsync<ErrorResponse>(_builder.FollowPlaylist(ownerId, playlistId, showPublic), body.ToString(Formatting.None), "PUT");
+            return UploadDataAsync<BasicModel>(_builder.FollowPlaylist(ownerId, playlistId, showPublic), body.ToString(Formatting.None), "PUT");
         }
 
         /// <summary>
@@ -842,9 +859,9 @@ namespace SpotifyAPI.Web
         /// <param name="playlistId">The Spotify ID of the playlist that is to be no longer followed.</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public ErrorResponse UnfollowPlaylist(string ownerId, string playlistId)
+        public BasicModel UnfollowPlaylist(string ownerId, string playlistId)
         {
-            return UploadData<ErrorResponse>(_builder.UnfollowPlaylist(ownerId, playlistId), "", "DELETE");
+            return UploadData<BasicModel>(_builder.UnfollowPlaylist(ownerId, playlistId), "", "DELETE");
         }
 
         /// <summary>
@@ -854,9 +871,9 @@ namespace SpotifyAPI.Web
         /// <param name="playlistId">The Spotify ID of the playlist that is to be no longer followed.</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public Task<ErrorResponse> UnfollowPlaylistAsync(string ownerId, string playlistId)
+        public Task<BasicModel> UnfollowPlaylistAsync(string ownerId, string playlistId)
         {
-            return UploadDataAsync<ErrorResponse>(_builder.UnfollowPlaylist(ownerId, playlistId), "", "DELETE");
+            return UploadDataAsync<BasicModel>(_builder.UnfollowPlaylist(ownerId, playlistId), "", "DELETE");
         }
 
         /// <summary>
@@ -929,10 +946,10 @@ namespace SpotifyAPI.Web
         /// <param name="ids">A list of the Spotify IDs</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public ErrorResponse SaveTracks(List<string> ids)
+        public BasicModel SaveTracks(List<string> ids)
         {
             JArray array = new JArray(ids);
-            return UploadData<ErrorResponse>(_builder.SaveTracks(), array.ToString(Formatting.None), "PUT") ?? new ErrorResponse();
+            return UploadData<BasicModel>(_builder.SaveTracks(), array.ToString(Formatting.None), "PUT") ?? new BasicModel();
         }
 
         /// <summary>
@@ -941,10 +958,10 @@ namespace SpotifyAPI.Web
         /// <param name="ids">A list of the Spotify IDs</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public async Task<ErrorResponse> SaveTracksAsync(List<string> ids)
+        public async Task<BasicModel> SaveTracksAsync(List<string> ids)
         {
             JArray array = new JArray(ids);
-            return (await UploadDataAsync<ErrorResponse>(_builder.SaveTracks(), array.ToString(Formatting.None), "PUT").ConfigureAwait(false)) ?? new ErrorResponse();
+            return (await UploadDataAsync<BasicModel>(_builder.SaveTracks(), array.ToString(Formatting.None), "PUT").ConfigureAwait(false)) ?? new BasicModel();
         }
 
         /// <summary>
@@ -953,7 +970,7 @@ namespace SpotifyAPI.Web
         /// <param name="id">A Spotify ID</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public ErrorResponse SaveTrack(string id)
+        public BasicModel SaveTrack(string id)
         {
             return SaveTracks(new List<string> { id });
         }
@@ -964,7 +981,7 @@ namespace SpotifyAPI.Web
         /// <param name="id">A Spotify ID</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public Task<ErrorResponse> SaveTrackAsync(string id)
+        public Task<BasicModel> SaveTrackAsync(string id)
         {
             return SaveTracksAsync(new List<string> { id });
         }
@@ -977,11 +994,11 @@ namespace SpotifyAPI.Web
         /// <param name="market">An ISO 3166-1 alpha-2 country code. Provide this parameter if you want to apply Track Relinking.</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public Paging<SavedTrack> GetSavedTracks(int limit = 20, int offset = 0, string market = "")
+        public ItemPaging<AddedTrack> GetSavedTracks(int limit = 50, int offset = 0, string market = "")
         {
             if (!UseAuth)
                 throw new InvalidOperationException("Auth is required for GetSavedTracks");
-            return DownloadData<Paging<SavedTrack>>(_builder.GetSavedTracks(limit, offset, market));
+            return DownloadData<ItemPaging<AddedTrack>>(_builder.GetSavedTracks(limit, offset, market));
         }
 
         /// <summary>
@@ -992,11 +1009,11 @@ namespace SpotifyAPI.Web
         /// <param name="market">An ISO 3166-1 alpha-2 country code. Provide this parameter if you want to apply Track Relinking.</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public Task<Paging<SavedTrack>> GetSavedTracksAsync(int limit = 20, int offset = 0, string market = "")
+        public Task<ItemPaging<AddedTrack>> GetSavedTracksAsync(int limit = 50, int offset = 0, string market = "")
         {
             if (!UseAuth)
                 throw new InvalidOperationException("Auth is required for GetSavedTracks");
-            return DownloadDataAsync<Paging<SavedTrack>>(_builder.GetSavedTracks(limit, offset, market));
+            return DownloadDataAsync<ItemPaging<AddedTrack>>(_builder.GetSavedTracks(limit, offset, market));
         }
 
         /// <summary>
@@ -1005,10 +1022,10 @@ namespace SpotifyAPI.Web
         /// <param name="ids">A list of the Spotify IDs.</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public ErrorResponse RemoveSavedTracks(List<string> ids)
+        public BasicModel RemoveSavedTracks(List<string> ids)
         {
             JArray array = new JArray(ids);
-            return UploadData<ErrorResponse>(_builder.RemoveSavedTracks(), array.ToString(Formatting.None), "DELETE") ?? new ErrorResponse();
+            return UploadData<BasicModel>(_builder.RemoveSavedTracks(), array.ToString(Formatting.None), "DELETE") ?? new BasicModel();
         }
 
         /// <summary>
@@ -1017,10 +1034,10 @@ namespace SpotifyAPI.Web
         /// <param name="ids">A list of the Spotify IDs.</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public async Task<ErrorResponse> RemoveSavedTracksAsync(List<string> ids)
+        public async Task<BasicModel> RemoveSavedTracksAsync(List<string> ids)
         {
             JArray array = new JArray(ids);
-            return (await UploadDataAsync<ErrorResponse>(_builder.RemoveSavedTracks(), array.ToString(Formatting.None), "DELETE").ConfigureAwait(false)) ?? new ErrorResponse();
+            return (await UploadDataAsync<BasicModel>(_builder.RemoveSavedTracks(), array.ToString(Formatting.None), "DELETE").ConfigureAwait(false)) ?? new BasicModel();
         }
 
         /// <summary>
@@ -1058,10 +1075,10 @@ namespace SpotifyAPI.Web
         /// <param name="ids">A list of the Spotify IDs</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public ErrorResponse SaveAlbums(List<string> ids)
+        public BasicModel SaveAlbums(List<string> ids)
         {
             JArray array = new JArray(ids);
-            return UploadData<ErrorResponse>(_builder.SaveAlbums(), array.ToString(Formatting.None), "PUT") ?? new ErrorResponse();
+            return UploadData<BasicModel>(_builder.SaveAlbums(), array.ToString(Formatting.None), "PUT") ?? new BasicModel();
         }
 
         /// <summary>
@@ -1070,10 +1087,10 @@ namespace SpotifyAPI.Web
         /// <param name="ids">A list of the Spotify IDs</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public async Task<ErrorResponse> SaveAlbumsAsync(List<string> ids)
+        public async Task<BasicModel> SaveAlbumsAsync(List<string> ids)
         {
             JArray array = new JArray(ids);
-            return (await UploadDataAsync<ErrorResponse>(_builder.SaveAlbums(), array.ToString(Formatting.None), "PUT").ConfigureAwait(false)) ?? new ErrorResponse();
+            return (await UploadDataAsync<BasicModel>(_builder.SaveAlbums(), array.ToString(Formatting.None), "PUT").ConfigureAwait(false)) ?? new BasicModel();
         }
 
         /// <summary>
@@ -1082,7 +1099,7 @@ namespace SpotifyAPI.Web
         /// <param name="id">A Spotify ID</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public ErrorResponse SaveAlbum(string id)
+        public BasicModel SaveAlbum(string id)
         {
             return SaveAlbums(new List<string> { id });
         }
@@ -1093,7 +1110,7 @@ namespace SpotifyAPI.Web
         /// <param name="id">A Spotify ID</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public Task<ErrorResponse> SaveAlbumAsync(string id)
+        public Task<BasicModel> SaveAlbumAsync(string id)
         {
             return SaveAlbumsAsync(new List<string> { id });
         }
@@ -1106,11 +1123,11 @@ namespace SpotifyAPI.Web
         /// <param name="market">An ISO 3166-1 alpha-2 country code. Provide this parameter if you want to apply Track Relinking.</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public Paging<SavedAlbum> GetSavedAlbums(int limit = 20, int offset = 0, string market = "")
+        public ItemPaging<SavedAlbum> GetSavedAlbums(int limit = 20, int offset = 0, string market = "")
         {
             if (!UseAuth)
                 throw new InvalidOperationException("Auth is required for GetSavedAlbums");
-            return DownloadData<Paging<SavedAlbum>>(_builder.GetSavedAlbums(limit, offset, market));
+            return DownloadData<ItemPaging<SavedAlbum>>(_builder.GetSavedAlbums(limit, offset, market));
         }
 
         /// <summary>
@@ -1121,11 +1138,11 @@ namespace SpotifyAPI.Web
         /// <param name="market">An ISO 3166-1 alpha-2 country code. Provide this parameter if you want to apply Track Relinking.</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public Task<Paging<SavedAlbum>> GetSavedAlbumsAsync(int limit = 20, int offset = 0, string market = "")
+        public Task<ItemPaging<SavedAlbum>> GetSavedAlbumsAsync(int limit = 20, int offset = 0, string market = "")
         {
             if (!UseAuth)
                 throw new InvalidOperationException("Auth is required for GetSavedAlbumsAsync");
-            return DownloadDataAsync<Paging<SavedAlbum>>(_builder.GetSavedAlbums(limit, offset, market));
+            return DownloadDataAsync<ItemPaging<SavedAlbum>>(_builder.GetSavedAlbums(limit, offset, market));
         }
 
         /// <summary>
@@ -1134,10 +1151,10 @@ namespace SpotifyAPI.Web
         /// <param name="ids">A list of the Spotify IDs.</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public ErrorResponse RemoveSavedAlbums(List<string> ids)
+        public BasicModel RemoveSavedAlbums(List<string> ids)
         {
             JArray array = new JArray(ids);
-            return UploadData<ErrorResponse>(_builder.RemoveSavedAlbums(), array.ToString(Formatting.None), "DELETE") ?? new ErrorResponse();
+            return UploadData<BasicModel>(_builder.RemoveSavedAlbums(), array.ToString(Formatting.None), "DELETE") ?? new BasicModel();
         }
 
         /// <summary>
@@ -1146,10 +1163,10 @@ namespace SpotifyAPI.Web
         /// <param name="ids">A list of the Spotify IDs.</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public async Task<ErrorResponse> RemoveSavedAlbumsAsync(List<string> ids)
+        public async Task<BasicModel> RemoveSavedAlbumsAsync(List<string> ids)
         {
             JArray array = new JArray(ids);
-            return (await UploadDataAsync<ErrorResponse>(_builder.RemoveSavedAlbums(), array.ToString(Formatting.None), "DELETE").ConfigureAwait(false)) ?? new ErrorResponse();
+            return (await UploadDataAsync<BasicModel>(_builder.RemoveSavedAlbums(), array.ToString(Formatting.None), "DELETE").ConfigureAwait(false)) ?? new BasicModel();
         }
 
         /// <summary>
@@ -1195,9 +1212,9 @@ namespace SpotifyAPI.Web
         /// <param name="offest">The index of the first entity to return. Default: 0 (i.e., the first track). Use with limit to get the next set of entities.</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public Paging<FullTrack> GetUsersTopTracks(TimeRangeType timeRange = TimeRangeType.MediumTerm, int limit = 20, int offest = 0)
+        public ItemPaging<FullTrack> GetUsersTopTracks(TimeRangeType timeRange = TimeRangeType.MediumTerm, int limit = 20, int offest = 0)
         {
-            return DownloadData<Paging<FullTrack>>(_builder.GetUsersTopTracks(timeRange, limit, offest));
+            return DownloadData<ItemPaging<FullTrack>>(_builder.GetUsersTopTracks(timeRange, limit, offest));
         }
 
         /// <summary>
@@ -1210,9 +1227,9 @@ namespace SpotifyAPI.Web
         /// <param name="offest">The index of the first entity to return. Default: 0 (i.e., the first track). Use with limit to get the next set of entities.</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public Task<Paging<FullTrack>> GetUsersTopTracksAsync(TimeRangeType timeRange = TimeRangeType.MediumTerm, int limit = 20, int offest = 0)
+        public Task<ItemPaging<FullTrack>> GetUsersTopTracksAsync(TimeRangeType timeRange = TimeRangeType.MediumTerm, int limit = 20, int offest = 0)
         {
-            return DownloadDataAsync<Paging<FullTrack>>(_builder.GetUsersTopTracks(timeRange, limit, offest));
+            return DownloadDataAsync<ItemPaging<FullTrack>>(_builder.GetUsersTopTracks(timeRange, limit, offest));
         }
 
         /// <summary>
@@ -1225,9 +1242,9 @@ namespace SpotifyAPI.Web
         /// <param name="offest">The index of the first entity to return. Default: 0 (i.e., the first track). Use with limit to get the next set of entities.</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public Paging<FullArtist> GetUsersTopArtists(TimeRangeType timeRange = TimeRangeType.MediumTerm, int limit = 20, int offest = 0)
+        public ItemPaging<FullArtist> GetUsersTopArtists(TimeRangeType timeRange = TimeRangeType.MediumTerm, int limit = 20, int offest = 0)
         {
-            return DownloadData<Paging<FullArtist>>(_builder.GetUsersTopArtists(timeRange, limit, offest));
+            return DownloadData<ItemPaging<FullArtist>>(_builder.GetUsersTopArtists(timeRange, limit, offest));
         }
 
         /// <summary>
@@ -1240,9 +1257,9 @@ namespace SpotifyAPI.Web
         /// <param name="offest">The index of the first entity to return. Default: 0 (i.e., the first track). Use with limit to get the next set of entities.</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public Task<Paging<FullArtist>> GetUsersTopArtistsAsync(TimeRangeType timeRange = TimeRangeType.MediumTerm, int limit = 20, int offest = 0)
+        public Task<ItemPaging<FullArtist>> GetUsersTopArtistsAsync(TimeRangeType timeRange = TimeRangeType.MediumTerm, int limit = 20, int offest = 0)
         {
-            return DownloadDataAsync<Paging<FullArtist>>(_builder.GetUsersTopArtists(timeRange, limit, offest));
+            return DownloadDataAsync<ItemPaging<FullArtist>>(_builder.GetUsersTopArtists(timeRange, limit, offest));
         }
 
         /// <summary>
@@ -1285,11 +1302,11 @@ namespace SpotifyAPI.Web
         /// <param name="offset">The index of the first playlist to return. Default: 0 (the first object)</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public Paging<SimplePlaylist> GetUserPlaylists(string userId, int limit = 20, int offset = 0)
+        public ItemPaging<SimplePlaylist> GetUserPlaylists(string userId, int limit = 50, int offset = 0)
         {
             if (!UseAuth)
                 throw new InvalidOperationException("Auth is required for GetUserPlaylists");
-            return DownloadData<Paging<SimplePlaylist>>(_builder.GetUserPlaylists(userId, limit, offset));
+            return DownloadData<ItemPaging<SimplePlaylist>>(_builder.GetUserPlaylists(userId, limit, offset));
         }
 
         /// <summary>
@@ -1300,11 +1317,11 @@ namespace SpotifyAPI.Web
         /// <param name="offset">The index of the first playlist to return. Default: 0 (the first object)</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public Task<Paging<SimplePlaylist>> GetUserPlaylistsAsync(string userId, int limit = 20, int offset = 0)
+        public Task<ItemPaging<SimplePlaylist>> GetUserPlaylistsAsync(string userId, int limit = 20, int offset = 0)
         {
             if (!UseAuth)
                 throw new InvalidOperationException("Auth is required for GetUserPlaylists");
-            return DownloadDataAsync<Paging<SimplePlaylist>>(_builder.GetUserPlaylists(userId, limit, offset));
+            return DownloadDataAsync<ItemPaging<SimplePlaylist>>(_builder.GetUserPlaylists(userId, limit, offset));
         }
 
         /// <summary>
@@ -1348,7 +1365,6 @@ namespace SpotifyAPI.Web
         /// <summary>
         ///     Get full details of the tracks of a playlist owned by a Spotify user.
         /// </summary>
-        /// <param name="userId">The user's Spotify user ID.</param>
         /// <param name="playlistId">The Spotify ID for the playlist.</param>
         /// <param name="fields">
         ///     Filters for the query: a comma-separated list of the fields to return. If omitted, all fields are
@@ -1359,17 +1375,16 @@ namespace SpotifyAPI.Web
         /// <param name="market">An ISO 3166-1 alpha-2 country code. Provide this parameter if you want to apply Track Relinking.</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public Paging<PlaylistTrack> GetPlaylistTracks(string userId, string playlistId, string fields = "", int limit = 100, int offset = 0, string market = "")
+        public ItemPaging<PlaylistTrack> GetPlaylistTracks(string playlistId, string fields = "", int limit = 100, int offset = 0, string market = "")
         {
             if (!UseAuth)
                 throw new InvalidOperationException("Auth is required for GetPlaylistTracks");
-            return DownloadData<Paging<PlaylistTrack>>(_builder.GetPlaylistTracks(userId, playlistId, fields, limit, offset, market));
+            return DownloadData<ItemPaging<PlaylistTrack>>(_builder.GetPlaylistTracks(playlistId, fields, limit, offset, market));
         }
 
         /// <summary>
         ///     Get full details of the tracks of a playlist owned by a Spotify user asyncronously.
         /// </summary>
-        /// <param name="userId">The user's Spotify user ID.</param>
         /// <param name="playlistId">The Spotify ID for the playlist.</param>
         /// <param name="fields">
         ///     Filters for the query: a comma-separated list of the fields to return. If omitted, all fields are
@@ -1380,17 +1395,17 @@ namespace SpotifyAPI.Web
         /// <param name="market">An ISO 3166-1 alpha-2 country code. Provide this parameter if you want to apply Track Relinking.</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public Task<Paging<PlaylistTrack>> GetPlaylistTracksAsync(string userId, string playlistId, string fields = "", int limit = 100, int offset = 0, string market = "")
+        public Task<ItemPaging<PlaylistTrack>> GetPlaylistTracksAsync(string playlistId, string fields = "", int limit = 100, int offset = 0, string market = "")
         {
             if (!UseAuth)
                 throw new InvalidOperationException("Auth is required for GetPlaylistTracks");
-            return DownloadDataAsync<Paging<PlaylistTrack>>(_builder.GetPlaylistTracks(userId, playlistId, fields, limit, offset, market));
+            return DownloadDataAsync<ItemPaging<PlaylistTrack>>(_builder.GetPlaylistTracks(playlistId, fields, limit, offset, market));
         }
 
         /// <summary>
         ///     Create a playlist for a Spotify user. (The playlist will be empty until you add tracks.)
         /// </summary>
-        /// <param name="userId">The user's Spotify user ID.</param>
+        /// <param name="user">The Spotify user.</param>
         /// <param name="playlistName">
         ///     The name for the new playlist, for example "Your Coolest Playlist". This name does not need
         ///     to be unique.
@@ -1404,7 +1419,7 @@ namespace SpotifyAPI.Web
         /// <param name="playlistDescription">Value for playlist description as displayed in Spotify Clients and in the Web API.</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public FullPlaylist CreatePlaylist(string userId, string playlistName, bool isPublic = true, bool isCollaborative = false, string playlistDescription = "")
+        public FullPlaylist CreatePlaylist(Profile user, string playlistName, bool isPublic = false, bool isCollaborative = false, string playlistDescription = "")
         {
             JObject body = new JObject
             {
@@ -1413,7 +1428,7 @@ namespace SpotifyAPI.Web
                 {"collaborative", isCollaborative},
                 {"description", playlistDescription}
             };
-            return UploadData<FullPlaylist>(_builder.CreatePlaylist(userId, playlistName, isPublic), body.ToString(Formatting.None));
+            return UploadData<FullPlaylist>(_builder.CreatePlaylist(user.Id, playlistName), body.ToString(Formatting.None));
         }
 
         /// <summary>
@@ -1442,7 +1457,7 @@ namespace SpotifyAPI.Web
                 {"collaborative", isCollaborative},
                 {"description", playlistDescription}
             };
-            return UploadDataAsync<FullPlaylist>(_builder.CreatePlaylist(userId, playlistName, isPublic), body.ToString(Formatting.None));
+            return UploadDataAsync<FullPlaylist>(_builder.CreatePlaylist(userId, playlistName), body.ToString(Formatting.None));
         }
 
         /// <summary>
@@ -1457,7 +1472,7 @@ namespace SpotifyAPI.Web
         /// <param name="newDescription">Value for playlist description as displayed in Spotify Clients and in the Web API.</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public ErrorResponse UpdatePlaylist(string userId, string playlistId, string newName = null, bool? newPublic = null, bool? newCollaborative = null, string newDescription = null)
+        public BasicModel UpdatePlaylist(string userId, string playlistId, string newName = null, bool? newPublic = null, bool? newCollaborative = null, string newDescription = null)
         {
             JObject body = new JObject();
             if (newName != null)
@@ -1468,7 +1483,7 @@ namespace SpotifyAPI.Web
                 body.Add("collaborative", newCollaborative);
             if (newDescription != null)
                 body.Add("description", newDescription);
-            return UploadData<ErrorResponse>(_builder.UpdatePlaylist(userId, playlistId), body.ToString(Formatting.None), "PUT") ?? new ErrorResponse();
+            return UploadData<BasicModel>(_builder.UpdatePlaylist(userId, playlistId), body.ToString(Formatting.None), "PUT") ?? new BasicModel();
         }
 
         /// <summary>
@@ -1482,7 +1497,7 @@ namespace SpotifyAPI.Web
         /// <param name="newDescription">Value for playlist description as displayed in Spotify Clients and in the Web API.</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public async Task<ErrorResponse> UpdatePlaylistAsync(string userId, string playlistId, string newName = null, bool? newPublic = null, bool? newCollaborative = null, string newDescription = null)
+        public async Task<BasicModel> UpdatePlaylistAsync(string userId, string playlistId, string newName = null, bool? newPublic = null, bool? newCollaborative = null, string newDescription = null)
         {
             JObject body = new JObject();
             if (newName != null)
@@ -1493,7 +1508,7 @@ namespace SpotifyAPI.Web
                 body.Add("collaborative", newCollaborative);
             if (newDescription != null)
                 body.Add("description", newDescription);
-            return (await UploadDataAsync<ErrorResponse>(_builder.UpdatePlaylist(userId, playlistId), body.ToString(Formatting.None), "PUT").ConfigureAwait(false)) ?? new ErrorResponse();
+            return (await UploadDataAsync<BasicModel>(_builder.UpdatePlaylist(userId, playlistId), body.ToString(Formatting.None), "PUT").ConfigureAwait(false)) ?? new BasicModel();
         }
 
         /// <summary>
@@ -1505,13 +1520,13 @@ namespace SpotifyAPI.Web
         /// <param name="uris">A list of Spotify track URIs to set. A maximum of 100 tracks can be set in one request.</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public ErrorResponse ReplacePlaylistTracks(string userId, string playlistId, List<string> uris)
+        public BasicModel ReplacePlaylistTracks(string userId, string playlistId, List<string> uris)
         {
             JObject body = new JObject
             {
                 {"uris", new JArray(uris.Take(100))}
             };
-            return UploadData<ErrorResponse>(_builder.ReplacePlaylistTracks(userId, playlistId), body.ToString(Formatting.None), "PUT") ?? new ErrorResponse();
+            return UploadData<BasicModel>(_builder.ReplacePlaylistTracks(userId, playlistId), body.ToString(Formatting.None), "PUT") ?? new BasicModel();
         }
 
         /// <summary>
@@ -1523,13 +1538,13 @@ namespace SpotifyAPI.Web
         /// <param name="uris">A list of Spotify track URIs to set. A maximum of 100 tracks can be set in one request.</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public async Task<ErrorResponse> ReplacePlaylistTracksAsync(string userId, string playlistId, List<string> uris)
+        public async Task<BasicModel> ReplacePlaylistTracksAsync(string userId, string playlistId, List<string> uris)
         {
             JObject body = new JObject
             {
                 {"uris", new JArray(uris.Take(100))}
             };
-            return await (UploadDataAsync<ErrorResponse>(_builder.ReplacePlaylistTracks(userId, playlistId), body.ToString(Formatting.None), "PUT").ConfigureAwait(false)) ?? new ErrorResponse();
+            return await (UploadDataAsync<BasicModel>(_builder.ReplacePlaylistTracks(userId, playlistId), body.ToString(Formatting.None), "PUT").ConfigureAwait(false)) ?? new BasicModel();
         }
 
         /// <summary>
@@ -1543,13 +1558,18 @@ namespace SpotifyAPI.Web
         /// </param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public ErrorResponse RemovePlaylistTracks(string userId, string playlistId, List<DeleteTrackUri> uris)
+        public BasicModel RemovePlaylistTracks(string userId, string playlistId, List<SpotifyUri> uris)
         {
+            if (uris.Count > 100)
+            {
+                RemovePlaylistTracks(userId, playlistId, uris.Skip(100).ToList());
+            }
+
             JObject body = new JObject
             {
                 {"tracks", JArray.FromObject(uris.Take(100))}
             };
-            return UploadData<ErrorResponse>(_builder.RemovePlaylistTracks(userId, playlistId, uris), body.ToString(Formatting.None), "DELETE") ?? new ErrorResponse();
+            return UploadData<BasicModel>(_builder.RemovePlaylistTracks(userId, playlistId), body.ToString(Formatting.None), "DELETE") ?? new BasicModel();
         }
 
         /// <summary>
@@ -1563,13 +1583,13 @@ namespace SpotifyAPI.Web
         /// </param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public async Task<ErrorResponse> RemovePlaylistTracksAsync(string userId, string playlistId, List<DeleteTrackUri> uris)
+        public async Task<BasicModel> RemovePlaylistTracksAsync(string userId, string playlistId, List<DeleteTrackUri> uris)
         {
             JObject body = new JObject
             {
                 {"tracks", JArray.FromObject(uris.Take(100))}
             };
-            return await (UploadDataAsync<ErrorResponse>(_builder.RemovePlaylistTracks(userId, playlistId, uris), body.ToString(Formatting.None), "DELETE").ConfigureAwait(false)) ?? new ErrorResponse();
+            return await (UploadDataAsync<BasicModel>(_builder.RemovePlaylistTracks(userId, playlistId), body.ToString(Formatting.None), "DELETE").ConfigureAwait(false)) ?? new BasicModel();
         }
 
         /// <summary>
@@ -1580,9 +1600,9 @@ namespace SpotifyAPI.Web
         /// <param name="uri">Spotify URI</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public ErrorResponse RemovePlaylistTrack(string userId, string playlistId, DeleteTrackUri uri)
+        public BasicModel RemovePlaylistTrack(string userId, string playlistId, SpotifyUri uri)
         {
-            return RemovePlaylistTracks(userId, playlistId, new List<DeleteTrackUri> { uri });
+            return RemovePlaylistTracks(userId, playlistId, new List<SpotifyUri> { uri });
         }
 
         /// <summary>
@@ -1593,7 +1613,7 @@ namespace SpotifyAPI.Web
         /// <param name="uri">Spotify URI</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public Task<ErrorResponse> RemovePlaylistTrackAsync(string userId, string playlistId, DeleteTrackUri uri)
+        public Task<BasicModel> RemovePlaylistTrackAsync(string userId, string playlistId, DeleteTrackUri uri)
         {
             return RemovePlaylistTracksAsync(userId, playlistId, new List<DeleteTrackUri> { uri });
         }
@@ -1607,13 +1627,13 @@ namespace SpotifyAPI.Web
         /// <param name="position">The position to insert the tracks, a zero-based index</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public ErrorResponse AddPlaylistTracks(string userId, string playlistId, List<string> uris, int? position = null)
+        public BasicModel AddPlaylistTracks(string userId, string playlistId, List<string> uris, int? position = null)
         {
             JObject body = new JObject
             {
                 {"uris", JArray.FromObject(uris.Take(100))}
             };
-            return UploadData<ErrorResponse>(_builder.AddPlaylistTracks(userId, playlistId, uris, position), body.ToString(Formatting.None)) ?? new ErrorResponse();
+            return UploadData<BasicModel>(_builder.AddPlaylistTracks(userId, playlistId, uris, position), body.ToString(Formatting.None)) ?? new BasicModel();
         }
 
         /// <summary>
@@ -1625,13 +1645,13 @@ namespace SpotifyAPI.Web
         /// <param name="position">The position to insert the tracks, a zero-based index</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public async Task<ErrorResponse> AddPlaylistTracksAsync(string userId, string playlistId, List<string> uris, int? position = null)
+        public async Task<BasicModel> AddPlaylistTracksAsync(string userId, string playlistId, List<string> uris, int? position = null)
         {
             JObject body = new JObject
             {
                 {"uris", JArray.FromObject(uris.Take(100))}
             };
-            return await (UploadDataAsync<ErrorResponse>(_builder.AddPlaylistTracks(userId, playlistId, uris, position), body.ToString(Formatting.None)).ConfigureAwait(false)) ?? new ErrorResponse();
+            return await (UploadDataAsync<BasicModel>(_builder.AddPlaylistTracks(userId, playlistId, uris, position), body.ToString(Formatting.None)).ConfigureAwait(false)) ?? new BasicModel();
         }
 
         /// <summary>
@@ -1643,7 +1663,7 @@ namespace SpotifyAPI.Web
         /// <param name="position">The position to insert the tracks, a zero-based index</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public ErrorResponse AddPlaylistTrack(string userId, string playlistId, string uri, int? position = null)
+        public BasicModel AddPlaylistTrack(string userId, string playlistId, string uri, int? position = null)
         {
             return AddPlaylistTracks(userId, playlistId, new List<string> { uri }, position);
         }
@@ -1657,7 +1677,7 @@ namespace SpotifyAPI.Web
         /// <param name="position">The position to insert the tracks, a zero-based index</param>
         /// <returns></returns>
         /// <remarks>AUTH NEEDED</remarks>
-        public Task<ErrorResponse> AddPlaylistTrackAsync(string userId, string playlistId, string uri, int? position = null)
+        public Task<BasicModel> AddPlaylistTrackAsync(string userId, string playlistId, string uri, int? position = null)
         {
             return AddPlaylistTracksAsync(userId, playlistId, new List<string> { uri }, position);
         }
@@ -1744,9 +1764,9 @@ namespace SpotifyAPI.Web
         /// </summary>
         /// <param name="userId">The user's Spotify user ID.</param>
         /// <returns></returns>
-        public PublicProfile GetPublicProfile(string userId)
+        public Profile GetPublicProfile(string userId)
         {
-            return DownloadData<PublicProfile>(_builder.GetPublicProfile(userId));
+            return DownloadData<Profile>(_builder.GetPublicProfile(userId));
         }
 
         /// <summary>
@@ -1754,9 +1774,9 @@ namespace SpotifyAPI.Web
         /// </summary>
         /// <param name="userId">The user's Spotify user ID.</param>
         /// <returns></returns>
-        public Task<PublicProfile> GetPublicProfileAsync(string userId)
+        public Task<Profile> GetPublicProfileAsync(string userId)
         {
-            return DownloadDataAsync<PublicProfile>(_builder.GetPublicProfile(userId));
+            return DownloadDataAsync<Profile>(_builder.GetPublicProfile(userId));
         }
 
         #endregion Profiles
@@ -1944,7 +1964,7 @@ namespace SpotifyAPI.Web
         /// false or not provided: keep the current playback state.
         /// </param>
         /// <returns></returns>
-        public ErrorResponse TransferPlayback(string deviceId, bool play = false) => TransferPlayback(
+        public BasicModel TransferPlayback(string deviceId, bool play = false) => TransferPlayback(
             new List<string> { deviceId }, play);
 
         /// <summary>
@@ -1956,7 +1976,7 @@ namespace SpotifyAPI.Web
         /// false or not provided: keep the current playback state.
         /// </param>
         /// <returns></returns>
-        public Task<ErrorResponse> TransferPlaybackAsync(string deviceId, bool play = false) => TransferPlaybackAsync(
+        public Task<BasicModel> TransferPlaybackAsync(string deviceId, bool play = false) => TransferPlaybackAsync(
             new List<string> { deviceId }, play);
 
         /// <summary>
@@ -1969,14 +1989,14 @@ namespace SpotifyAPI.Web
         /// false or not provided: keep the current playback state.
         /// </param>
         /// <returns></returns>
-        public ErrorResponse TransferPlayback(List<string> deviceIds, bool play = false)
+        public BasicModel TransferPlayback(List<string> deviceIds, bool play = false)
         {
             JObject ob = new JObject()
             {
                 { "play", play },
                 { "device_ids", new JArray(deviceIds) }
             };
-            return UploadData<ErrorResponse>(_builder.TransferPlayback(), ob.ToString(Formatting.None), "PUT");
+            return UploadData<BasicModel>(_builder.TransferPlayback(), ob.ToString(Formatting.None), "PUT");
         }
 
         /// <summary>
@@ -1989,14 +2009,14 @@ namespace SpotifyAPI.Web
         /// false or not provided: keep the current playback state.
         /// </param>
         /// <returns></returns>
-        public Task<ErrorResponse> TransferPlaybackAsync(List<string> deviceIds, bool play = false)
+        public Task<BasicModel> TransferPlaybackAsync(List<string> deviceIds, bool play = false)
         {
             JObject ob = new JObject()
             {
                 { "play", play },
                 { "device_ids", new JArray(deviceIds) }
             };
-            return UploadDataAsync<ErrorResponse>(_builder.TransferPlayback(), ob.ToString(Formatting.None), "PUT");
+            return UploadDataAsync<BasicModel>(_builder.TransferPlayback(), ob.ToString(Formatting.None), "PUT");
         }
 
         /// <summary>
@@ -2009,7 +2029,7 @@ namespace SpotifyAPI.Web
         /// <param name="positionMs">The starting time to seek the track to</param>
         /// Only available when context_uri corresponds to an album or playlist object, or when the uris parameter is used.</param>
         /// <returns></returns>
-        public ErrorResponse ResumePlayback(string deviceId = "", string contextUri = "", List<string> uris = null,
+        public BasicModel ResumePlayback(string deviceId = "", string contextUri = "", List<string> uris = null,
             int? offset = null, int positionMs = 0)
         {
             JObject ob = new JObject();
@@ -2021,7 +2041,7 @@ namespace SpotifyAPI.Web
                 ob.Add("offset", new JObject { { "position", offset } });
             if (positionMs > 0)
                 ob.Add("position_ms", positionMs);
-            return UploadData<ErrorResponse>(_builder.ResumePlayback(deviceId), ob.ToString(Formatting.None), "PUT");
+            return UploadData<BasicModel>(_builder.ResumePlayback(deviceId), ob.ToString(Formatting.None), "PUT");
         }
 
         /// <summary>
@@ -2034,7 +2054,7 @@ namespace SpotifyAPI.Web
         /// <param name="positionMs">The starting time to seek the track to</param>
         /// Only available when context_uri corresponds to an album or playlist object, or when the uris parameter is used.</param>
         /// <returns></returns>
-        public Task<ErrorResponse> ResumePlaybackAsync(string deviceId = "", string contextUri = "", List<string> uris = null,
+        public Task<BasicModel> ResumePlaybackAsync(string deviceId = "", string contextUri = "", List<string> uris = null,
             int? offset = null, int positionMs = 0)
         {
             JObject ob = new JObject();
@@ -2046,7 +2066,7 @@ namespace SpotifyAPI.Web
                 ob.Add("offset", new JObject { { "position", offset } });
             if (positionMs > 0)
                 ob.Add("position_ms", positionMs);
-            return UploadDataAsync<ErrorResponse>(_builder.ResumePlayback(deviceId), ob.ToString(Formatting.None), "PUT");
+            return UploadDataAsync<BasicModel>(_builder.ResumePlayback(deviceId), ob.ToString(Formatting.None), "PUT");
         }
 
         /// <summary>
@@ -2059,7 +2079,7 @@ namespace SpotifyAPI.Web
         /// <param name="positionMs">The starting time to seek the track to</param>
         /// Only available when context_uri corresponds to an album or playlist object, or when the uris parameter is used.</param>
         /// <returns></returns>
-        public ErrorResponse ResumePlayback(string deviceId = "", string contextUri = "", List<string> uris = null,
+        public BasicModel ResumePlayback(string deviceId = "", string contextUri = "", List<string> uris = null,
             string offset = "", int positionMs = 0)
         {
             JObject ob = new JObject();
@@ -2071,7 +2091,7 @@ namespace SpotifyAPI.Web
                 ob.Add("offset", new JObject {{"uri", offset}});
             if (positionMs > 0)
                 ob.Add("position_ms", positionMs);
-            return UploadData<ErrorResponse>(_builder.ResumePlayback(deviceId), ob.ToString(Formatting.None), "PUT");
+            return UploadData<BasicModel>(_builder.ResumePlayback(deviceId), ob.ToString(Formatting.None), "PUT");
         }
 
         /// <summary>
@@ -2084,7 +2104,7 @@ namespace SpotifyAPI.Web
         /// <param name="positionMs">The starting time to seek the track to</param>
         /// Only available when context_uri corresponds to an album or playlist object, or when the uris parameter is used.</param>
         /// <returns></returns>
-        public Task<ErrorResponse> ResumePlaybackAsync(string deviceId = "", string contextUri = "", List<string> uris = null,
+        public Task<BasicModel> ResumePlaybackAsync(string deviceId = "", string contextUri = "", List<string> uris = null,
             string offset = "", int positionMs = 0)
         {
             JObject ob = new JObject();
@@ -2096,7 +2116,7 @@ namespace SpotifyAPI.Web
                 ob.Add("offset", new JObject { { "uri", offset } });
             if (positionMs > 0)
                 ob.Add("position_ms", positionMs);
-            return UploadDataAsync<ErrorResponse>(_builder.ResumePlayback(deviceId), ob.ToString(Formatting.None), "PUT");
+            return UploadDataAsync<BasicModel>(_builder.ResumePlayback(deviceId), ob.ToString(Formatting.None), "PUT");
         }
 
         /// <summary>
@@ -2104,9 +2124,9 @@ namespace SpotifyAPI.Web
         /// </summary>
         /// <param name="deviceId">The id of the device this command is targeting. If not supplied, the user's currently active device is the target.</param>
         /// <returns></returns>
-        public ErrorResponse PausePlayback(string deviceId = "")
+        public BasicModel PausePlayback(string deviceId = "")
         {
-            return UploadData<ErrorResponse>(_builder.PausePlayback(deviceId), string.Empty, "PUT");
+            return UploadData<BasicModel>(_builder.PausePlayback(deviceId), string.Empty, "PUT");
         }
 
         /// <summary>
@@ -2114,9 +2134,9 @@ namespace SpotifyAPI.Web
         /// </summary>
         /// <param name="deviceId">The id of the device this command is targeting. If not supplied, the user's currently active device is the target.</param>
         /// <returns></returns>
-        public Task<ErrorResponse> PausePlaybackAsync(string deviceId = "")
+        public Task<BasicModel> PausePlaybackAsync(string deviceId = "")
         {
-            return UploadDataAsync<ErrorResponse>(_builder.PausePlayback(deviceId), string.Empty, "PUT");
+            return UploadDataAsync<BasicModel>(_builder.PausePlayback(deviceId), string.Empty, "PUT");
         }
 
         /// <summary>
@@ -2124,9 +2144,9 @@ namespace SpotifyAPI.Web
         /// </summary>
         /// <param name="deviceId">The id of the device this command is targeting. If not supplied, the user's currently active device is the target.</param>
         /// <returns></returns>
-        public ErrorResponse SkipPlaybackToNext(string deviceId = "")
+        public BasicModel SkipPlaybackToNext(string deviceId = "")
         {
-            return UploadData<ErrorResponse>(_builder.SkipPlaybackToNext(deviceId), string.Empty);
+            return UploadData<BasicModel>(_builder.SkipPlaybackToNext(deviceId), string.Empty);
         }
 
         /// <summary>
@@ -2134,9 +2154,9 @@ namespace SpotifyAPI.Web
         /// </summary>
         /// <param name="deviceId">The id of the device this command is targeting. If not supplied, the user's currently active device is the target.</param>
         /// <returns></returns>
-        public Task<ErrorResponse> SkipPlaybackToNextAsync(string deviceId = "")
+        public Task<BasicModel> SkipPlaybackToNextAsync(string deviceId = "")
         {
-            return UploadDataAsync<ErrorResponse>(_builder.SkipPlaybackToNext(deviceId), string.Empty);
+            return UploadDataAsync<BasicModel>(_builder.SkipPlaybackToNext(deviceId), string.Empty);
         }
 
         /// <summary>
@@ -2146,9 +2166,9 @@ namespace SpotifyAPI.Web
         /// </summary>
         /// <param name="deviceId">The id of the device this command is targeting. If not supplied, the user's currently active device is the target.</param>
         /// <returns></returns>
-        public ErrorResponse SkipPlaybackToPrevious(string deviceId = "")
+        public BasicModel SkipPlaybackToPrevious(string deviceId = "")
         {
-            return UploadData<ErrorResponse>(_builder.SkipPlaybackToPrevious(deviceId), string.Empty);
+            return UploadData<BasicModel>(_builder.SkipPlaybackToPrevious(deviceId), string.Empty);
         }
 
         /// <summary>
@@ -2158,9 +2178,9 @@ namespace SpotifyAPI.Web
         /// </summary>
         /// <param name="deviceId">The id of the device this command is targeting. If not supplied, the user's currently active device is the target.</param>
         /// <returns></returns>
-        public Task<ErrorResponse> SkipPlaybackToPreviousAsync(string deviceId = "")
+        public Task<BasicModel> SkipPlaybackToPreviousAsync(string deviceId = "")
         {
-            return UploadDataAsync<ErrorResponse>(_builder.SkipPlaybackToPrevious(deviceId), string.Empty);
+            return UploadDataAsync<BasicModel>(_builder.SkipPlaybackToPrevious(deviceId), string.Empty);
         }
 
         /// <summary>
@@ -2170,9 +2190,9 @@ namespace SpotifyAPI.Web
         /// Passing in a position that is greater than the length of the track will cause the player to start playing the next song.</param>
         /// <param name="deviceId">The id of the device this command is targeting. If not supplied, the user's currently active device is the target.</param>
         /// <returns></returns>
-        public ErrorResponse SeekPlayback(int positionMs, string deviceId = "")
+        public BasicModel SeekPlayback(int positionMs, string deviceId = "")
         {
-            return UploadData<ErrorResponse>(_builder.SeekPlayback(positionMs, deviceId), string.Empty, "PUT");
+            return UploadData<BasicModel>(_builder.SeekPlayback(positionMs, deviceId), string.Empty, "PUT");
         }
 
         /// <summary>
@@ -2182,9 +2202,9 @@ namespace SpotifyAPI.Web
         /// Passing in a position that is greater than the length of the track will cause the player to start playing the next song.</param>
         /// <param name="deviceId">The id of the device this command is targeting. If not supplied, the user's currently active device is the target.</param>
         /// <returns></returns>
-        public Task<ErrorResponse> SeekPlaybackAsync(int positionMs, string deviceId = "")
+        public Task<BasicModel> SeekPlaybackAsync(int positionMs, string deviceId = "")
         {
-            return UploadDataAsync<ErrorResponse>(_builder.SeekPlayback(positionMs, deviceId), string.Empty, "PUT");
+            return UploadDataAsync<BasicModel>(_builder.SeekPlayback(positionMs, deviceId), string.Empty, "PUT");
         }
 
         /// <summary>
@@ -2193,9 +2213,9 @@ namespace SpotifyAPI.Web
         /// <param name="state">track, context or off. </param>
         /// <param name="deviceId">The id of the device this command is targeting. If not supplied, the user's currently active device is the target.</param>
         /// <returns></returns>
-        public ErrorResponse SetRepeatMode(RepeatState state, string deviceId = "")
+        public BasicModel SetRepeatMode(RepeatState state, string deviceId = "")
         {
-            return UploadData<ErrorResponse>(_builder.SetRepeatMode(state, deviceId), string.Empty, "PUT");
+            return UploadData<BasicModel>(_builder.SetRepeatMode(state, deviceId), string.Empty, "PUT");
         }
 
         /// <summary>
@@ -2204,9 +2224,9 @@ namespace SpotifyAPI.Web
         /// <param name="state">track, context or off. </param>
         /// <param name="deviceId">The id of the device this command is targeting. If not supplied, the user's currently active device is the target.</param>
         /// <returns></returns>
-        public Task<ErrorResponse> SetRepeatModeAsync(RepeatState state, string deviceId = "")
+        public Task<BasicModel> SetRepeatModeAsync(RepeatState state, string deviceId = "")
         {
-            return UploadDataAsync<ErrorResponse>(_builder.SetRepeatMode(state, deviceId), string.Empty, "PUT");
+            return UploadDataAsync<BasicModel>(_builder.SetRepeatMode(state, deviceId), string.Empty, "PUT");
         }
 
         /// <summary>
@@ -2215,9 +2235,9 @@ namespace SpotifyAPI.Web
         /// <param name="volumePercent">Integer. The volume to set. Must be a value from 0 to 100 inclusive.</param>
         /// <param name="deviceId">The id of the device this command is targeting. If not supplied, the user's currently active device is the target.</param>
         /// <returns></returns>
-        public ErrorResponse SetVolume(int volumePercent, string deviceId = "")
+        public BasicModel SetVolume(int volumePercent, string deviceId = "")
         {
-            return UploadData<ErrorResponse>(_builder.SetVolume(volumePercent, deviceId), string.Empty, "PUT");
+            return UploadData<BasicModel>(_builder.SetVolume(volumePercent, deviceId), string.Empty, "PUT");
         }
 
         /// <summary>
@@ -2226,9 +2246,9 @@ namespace SpotifyAPI.Web
         /// <param name="volumePercent">Integer. The volume to set. Must be a value from 0 to 100 inclusive.</param>
         /// <param name="deviceId">The id of the device this command is targeting. If not supplied, the user's currently active device is the target.</param>
         /// <returns></returns>
-        public Task<ErrorResponse> SetVolumeAsync(int volumePercent, string deviceId = "")
+        public Task<BasicModel> SetVolumeAsync(int volumePercent, string deviceId = "")
         {
-            return UploadDataAsync<ErrorResponse>(_builder.SetVolume(volumePercent, deviceId), string.Empty, "PUT");
+            return UploadDataAsync<BasicModel>(_builder.SetVolume(volumePercent, deviceId), string.Empty, "PUT");
         }
 
         /// <summary>
@@ -2237,9 +2257,9 @@ namespace SpotifyAPI.Web
         /// <param name="shuffle">True or False</param>
         /// <param name="deviceId">The id of the device this command is targeting. If not supplied, the user's currently active device is the target.</param>
         /// <returns></returns>
-        public ErrorResponse SetShuffle(bool shuffle, string deviceId = "")
+        public BasicModel SetShuffle(bool shuffle, string deviceId = "")
         {
-            return UploadData<ErrorResponse>(_builder.SetShuffle(shuffle, deviceId), string.Empty, "PUT");
+            return UploadData<BasicModel>(_builder.SetShuffle(shuffle, deviceId), string.Empty, "PUT");
         }
 
         /// <summary>
@@ -2248,61 +2268,61 @@ namespace SpotifyAPI.Web
         /// <param name="shuffle">True or False</param>
         /// <param name="deviceId">The id of the device this command is targeting. If not supplied, the user's currently active device is the target.</param>
         /// <returns></returns>
-        public Task<ErrorResponse> SetShuffleAsync(bool shuffle, string deviceId = "")
+        public Task<BasicModel> SetShuffleAsync(bool shuffle, string deviceId = "")
         {
-            return UploadDataAsync<ErrorResponse>(_builder.SetShuffle(shuffle, deviceId), string.Empty, "PUT");
+            return UploadDataAsync<BasicModel>(_builder.SetShuffle(shuffle, deviceId), string.Empty, "PUT");
         }
 
         #endregion
 
         #region Util
 
-        public TOut GetNextPage<TOut, TIn>(Paging<TIn> paging) where TOut : BasicModel
+        public TOut GetNextPage<TOut, TIn>(ItemPaging<TIn> paging) where TOut : BasicModel
         {
             if (!paging.HasNextPage())
                 throw new InvalidOperationException("This Paging-Object has no Next-Page");
             return DownloadData<TOut>(paging.Next);
         }
 
-        public Paging<T> GetNextPage<T>(Paging<T> paging)
+        public ItemPaging<T> GetNextPage<T>(ItemPaging<T> paging)
         {
-            return GetNextPage<Paging<T>, T>(paging);
+            return GetNextPage<ItemPaging<T>, T>(paging);
         }
 
-        public Task<TOut> GetNextPageAsync<TOut, TIn>(Paging<TIn> paging) where TOut : BasicModel
+        public Task<TOut> GetNextPageAsync<TOut, TIn>(ItemPaging<TIn> paging) where TOut : BasicModel
         {
             if (!paging.HasNextPage())
                 throw new InvalidOperationException("This Paging-Object has no Next-Page");
             return DownloadDataAsync<TOut>(paging.Next);
         }
 
-        public Task<Paging<T>> GetNextPageAsync<T>(Paging<T> paging)
+        public Task<ItemPaging<T>> GetNextPageAsync<T>(ItemPaging<T> paging)
         {
-            return GetNextPageAsync<Paging<T>, T>(paging);
+            return GetNextPageAsync<ItemPaging<T>, T>(paging);
         }
 
-        public TOut GetPreviousPage<TOut, TIn>(Paging<TIn> paging) where TOut : BasicModel
+        public TOut GetPreviousPage<TOut, TIn>(ItemPaging<TIn> paging) where TOut : BasicModel
         {
             if (!paging.HasPreviousPage())
                 throw new InvalidOperationException("This Paging-Object has no Previous-Page");
             return DownloadData<TOut>(paging.Previous);
         }
 
-        public Paging<T> GetPreviousPage<T>(Paging<T> paging)
+        public ItemPaging<T> GetPreviousPage<T>(ItemPaging<T> paging)
         {
-            return GetPreviousPage<Paging<T>, T>(paging);
+            return GetPreviousPage<ItemPaging<T>, T>(paging);
         }
 
-        public Task<TOut> GetPreviousPageAsync<TOut, TIn>(Paging<TIn> paging) where TOut : BasicModel
+        public Task<TOut> GetPreviousPageAsync<TOut, TIn>(ItemPaging<TIn> paging) where TOut : BasicModel
         {
             if (!paging.HasPreviousPage())
                 throw new InvalidOperationException("This Paging-Object has no Previous-Page");
             return DownloadDataAsync<TOut>(paging.Previous);
         }
 
-        public Task<Paging<T>> GetPreviousPageAsync<T>(Paging<T> paging)
+        public Task<ItemPaging<T>> GetPreviousPageAsync<T>(ItemPaging<T> paging)
         {
-            return GetPreviousPageAsync<Paging<T>, T>(paging);
+            return GetPreviousPageAsync<ItemPaging<T>, T>(paging);
         }
 
         private ListResponse<T> DownloadList<T>(string url)
@@ -2359,14 +2379,14 @@ namespace SpotifyAPI.Web
                 };
             }
             else
-            { 
+            {
                 ret = new ListResponse<T>
                 {
                     List = null,
                     Error = res.Item2["error"].ToObject<Error>()
                 };
             }
-            ret.AddResponseInfo(res.Item1);
+            ret.Info = res.Item1;
             return ret;
         }
 
@@ -2389,7 +2409,7 @@ namespace SpotifyAPI.Web
                 if (response != null) { Thread.Sleep(RetryAfter); }
                 response = WebClient.UploadJson<T>(url, uploadData, method, headers);
 
-                response.Item2.AddResponseInfo(response.Item1);
+                response.Item2.Info = response.Item1;
                 lastError = response.Item2.Error;
                 triesLeft -= 1;
 
@@ -2418,7 +2438,7 @@ namespace SpotifyAPI.Web
                 if (response != null) { await Task.Delay(RetryAfter).ConfigureAwait(false); }
                 response = await WebClient.UploadJsonAsync<T>(url, uploadData, method, headers).ConfigureAwait(false);
 
-                response.Item2.AddResponseInfo(response.Item1);
+                response.Item2.Info = response.Item1;
                 lastError = response.Item2.Error;
 
                 triesLeft -= 1;
@@ -2430,22 +2450,45 @@ namespace SpotifyAPI.Web
 
         public T DownloadData<T>(string url) where T : BasicModel
         {
+            var lastRequestTimeAgo = (DateTime.Now - LastRequest).Duration();
+
+            if (lastRequestTimeAgo < MinimumDelayBetweenRequests)
+            {
+                Thread.Sleep(MinimumDelayBetweenRequests - lastRequestTimeAgo);
+            }
+
             int triesLeft = RetryTimes + 1;
-            Error lastError;
+            Error lastError = null;
 
             Tuple<ResponseInfo, T> response = null;
             do
             {
-                if(response != null) { Thread.Sleep(RetryAfter); }
+                if(response != null)
+                {
+                    var sleep = RetryAfter;
+                    if (lastError != null && lastError.Status == 429)
+                    {
+                        sleep = RetryAfterWhenApiRateExceeeded;
+                    }
+                    Thread.Sleep(RetryAfter);
+                }
+
                 response = DownloadDataAlt<T>(url);
 
-                response.Item2.AddResponseInfo(response.Item1);
+                response.Item2.Info = response.Item1;
                 lastError = response.Item2.Error;
 
                 triesLeft -= 1;
 
             } while (UseAutoRetry && triesLeft > 0 && lastError != null && RetryErrorCodes.Contains(lastError.Status));
 
+            LastRequest = DateTime.Now;
+
+            if (lastError?.Status == 429)
+                throw new ApiRateExceededException();
+
+            if (lastError?.Status == 400)
+                throw new HttpException(lastError.Status);
 
             return response.Item2;
         }
@@ -2463,7 +2506,13 @@ namespace SpotifyAPI.Web
             {
                 return -1;
             }
-            if (!int.TryParse(info.Headers.Get("Retry-After"), out var secondsToWait))
+
+            if (!info.Headers.ContainsKey("Retry-After"))
+            {
+                return -1;
+            }
+
+            if (!int.TryParse(info.Headers["Retry-After"], out var secondsToWait))
             {
                 return -1;
             }
@@ -2490,7 +2539,7 @@ namespace SpotifyAPI.Web
                 }
                 response = await DownloadDataAltAsync<T>(url).ConfigureAwait(false);
 
-                response.Item2.AddResponseInfo(response.Item1);
+                response.Item2.Info = response.Item1;
                 lastError = response.Item2.Error;
 
                 if (TooManyRequestsConsumesARetry || GetTooManyRequests(response.Item1) == -1)

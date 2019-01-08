@@ -5,11 +5,15 @@ VisualStudioVersion = 15.0.27004.2009
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SpotifyAPI.Web", "SpotifyAPI.Web\SpotifyAPI.Web.csproj", "{EC8A93BA-27C4-4642-B7A0-11B809C35BE4}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SpotifyAPI.Web.Tests", "SpotifyAPI.Web.Tests\SpotifyAPI.Web.Tests.csproj", "{47FD780C-47B2-4634-9BB4-83C660101FAE}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SpotifyAPI.Web.Auth", "SpotifyAPI.Web.Auth\SpotifyAPI.Web.Auth.csproj", "{400A3787-FDBE-4A4C-9DDD-AAEB3DCE1DF5}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SpotifyAPI.Web.Example", "SpotifyAPI.Web.Example\SpotifyAPI.Web.Example.csproj", "{8D1CCA36-C7C2-4A70-B194-B23D7E03F00A}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MathLib", "MathLib\MathLib.csproj", "{BB933429-9582-4DD1-BDB0-41806C7D927B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpotifyAPI.Web.Auth", "SpotifyAPI.Web.Auth\SpotifyAPI.Web.Auth.csproj", "{400A3787-FDBE-4A4C-9DDD-AAEB3DCE1DF5}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SpotifyFixerCore", "SpotifyFixerCore\SpotifyFixerCore.csproj", "{F99CCE32-3556-4427-BE97-2857B4412793}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpotifyFixerCli", "SpotifyFixerCli\SpotifyFixerCli.csproj", "{4A7C228F-2892-40FD-8F82-A35737F229B5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpotifyFixer", "SpotifyFixer\SpotifyFixer.csproj", "{8D2346E7-2695-4138-BBE4-FC69A77BD380}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,18 +25,26 @@ Global
 		{EC8A93BA-27C4-4642-B7A0-11B809C35BE4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{EC8A93BA-27C4-4642-B7A0-11B809C35BE4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{EC8A93BA-27C4-4642-B7A0-11B809C35BE4}.Release|Any CPU.Build.0 = Release|Any CPU
-		{47FD780C-47B2-4634-9BB4-83C660101FAE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{47FD780C-47B2-4634-9BB4-83C660101FAE}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{47FD780C-47B2-4634-9BB4-83C660101FAE}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{47FD780C-47B2-4634-9BB4-83C660101FAE}.Release|Any CPU.Build.0 = Release|Any CPU
-		{8D1CCA36-C7C2-4A70-B194-B23D7E03F00A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{8D1CCA36-C7C2-4A70-B194-B23D7E03F00A}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{8D1CCA36-C7C2-4A70-B194-B23D7E03F00A}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{8D1CCA36-C7C2-4A70-B194-B23D7E03F00A}.Release|Any CPU.Build.0 = Release|Any CPU
 		{400A3787-FDBE-4A4C-9DDD-AAEB3DCE1DF5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{400A3787-FDBE-4A4C-9DDD-AAEB3DCE1DF5}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{400A3787-FDBE-4A4C-9DDD-AAEB3DCE1DF5}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{400A3787-FDBE-4A4C-9DDD-AAEB3DCE1DF5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BB933429-9582-4DD1-BDB0-41806C7D927B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BB933429-9582-4DD1-BDB0-41806C7D927B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BB933429-9582-4DD1-BDB0-41806C7D927B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BB933429-9582-4DD1-BDB0-41806C7D927B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F99CCE32-3556-4427-BE97-2857B4412793}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F99CCE32-3556-4427-BE97-2857B4412793}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F99CCE32-3556-4427-BE97-2857B4412793}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F99CCE32-3556-4427-BE97-2857B4412793}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4A7C228F-2892-40FD-8F82-A35737F229B5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4A7C228F-2892-40FD-8F82-A35737F229B5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4A7C228F-2892-40FD-8F82-A35737F229B5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4A7C228F-2892-40FD-8F82-A35737F229B5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8D2346E7-2695-4138-BBE4-FC69A77BD380}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8D2346E7-2695-4138-BBE4-FC69A77BD380}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8D2346E7-2695-4138-BBE4-FC69A77BD380}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8D2346E7-2695-4138-BBE4-FC69A77BD380}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
