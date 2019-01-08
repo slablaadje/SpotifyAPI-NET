@@ -2,6 +2,8 @@
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 using SpotifyAPI.Web.Enums;
+using SpotifyAPI.Web.Models.Devices;
+using SpotifyAPI.Web.Models.Music;
 
 namespace SpotifyAPI.Web.Models
 {

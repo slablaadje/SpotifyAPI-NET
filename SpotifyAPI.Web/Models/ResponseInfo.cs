@@ -1,11 +1,11 @@
-﻿using SpotifyAPI.Web.Enums;
+﻿using System.Collections.Generic;
 using System.Net;
 
 namespace SpotifyAPI.Web.Models
 {
     public class ResponseInfo
     {
-        public WebHeaderCollection Headers { get; set; }
+        public Dictionary<string, string> Headers { get; set; }
 
         public HttpStatusCode StatusCode { get; set; }
 
