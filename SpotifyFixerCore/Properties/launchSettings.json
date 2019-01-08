@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "UpdatePlaylist": {
+      "commandName": "Project",
+      "commandLineArgs": "-a -o artists.txt"
+    }
+  }
+}
